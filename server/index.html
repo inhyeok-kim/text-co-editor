@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document</title>
+    <script>
+        var ws = new WebSocket('ws://192.168.123.48:3000');
+        ws.onopen = function(){
+            console.log('socket connected');
+        }
+
+        function login(){
+            ws.send(document.getElementById('id').value);
+        }
+
+        function send(){
+            ws.send(document.getElementById('text').value);
+        }
+
+        var board = document.getElementById('board');
+        
+        ws.onmessage = function(message){
+            const event = JSON.parse(message.data);
+            console.log(event);
+            let selectEnd = board.selectionEnd;
+            let selectStart = board.selectionStart;
+            
+            let text = board.value;
+            switch (event.type) {
+                case "insertText":
+                    text = text.substring(0,event.selectionStart) + event.data + text.substring(event.selectionEnd,text.length);
+                    console.log(event.selectionStart, selectStart);
+                    if(event.selectionStart < selectStart) {
+                        selectStart += event.data.length;
+                        selectEnd += event.data.length;
+                    }
+                    break;
+                case "insertLineBreak":
+                    text = text.substring(0,event.selectionStart) + '\n' + text.substring(event.selectionEnd,text.length);
+                    break;
+                case "insertReplacementText": case "insertCompositionText":
+                    text = text.substring(0,event.selectionStart) + event.data + text.substring(event.selectionEnd,text.length);
+                    break;
+                case "deleteContentBackward":
+                    if(event.selectionStart == event.selectionEnd){
+                        event.selectionStart--;
+                    }
+                    text = text.substring(0,event.selectionStart) + text.substring(event.selectionEnd,text.length);
+                    break;
+            
+                default:
+                    break;
+            }
+            console.log(board);
+            board.value = text;
+            board.selectionEnd = selectEnd;
+            board.selectionStart = selectStart;
+        }
+
+    </script>
+</head>
+<body>
+    <div id="wrapper">
+        <div contenteditable id="root"></div>
+
+    </div>
+
+    <script>
+        var root = document.getElementById('root');
+
+        root.addEventListener('beforeinput', function(e){
+            if(e.inputType == 'insertParagraph' ||  e.inputType == 'insertLineBreak'){
+                e.preventDefault();
+                addLine(root,e.timeStamp);
+            }
+            const event = {
+                selectionStart : document.getSelection().anchorOffset,
+                selectionEnd : document.getSelection().focusOffset,
+                type : e.inputType,
+                data : e.data
+            }
+            console.log(e);
+            // ws.send(JSON.stringify(event));
+        });
+
+        function lineListener(e){
+            const target = e.target;
+            if(e.inputType == 'insertParagraph' ||  e.inputType == 'insertLineBreak'){
+                e.preventDefault();
+                addLine(target,e.timeStamp);
+            }
+            if(e.inputType == 'deleteContentBackward'){
+                if(target.innerText.length == 0){
+                    target.previousSibling.focus();
+                    target.remove();
+                }
+            }
+            const event = {
+                selectionStart : target.selectionStart,
+                selectionEnd : target.selectionEnd,
+                type : e.inputType,
+                data : e.data
+            }
+        }
+
+        function addLine(element,timestamp){
+            const wrapper = document.getElementById('wrapper');
+            const newDiv = document.createElement('div');
+            newDiv.setAttribute('contenteditable', true);
+            newDiv.id = 'line_'+timestamp;
+            newDiv.addEventListener('beforeinput',lineListener);
+            if(element.nextSibling){
+                wrapper.insertBefore(newDiv,element.nextSibling);
+            }
+            newDiv.focus();
+
+        }
+
+    </script>
+
+</body>
+</html>
